@@ -1,3 +1,5 @@
+import random
+from datetime import datetime
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
@@ -7,11 +9,14 @@ users = {}
 waiting = []
 pairs = {}
 
+captcha = {}
+verified_users = set()
+
 # -------- MENUS --------
 
 menu = ReplyKeyboardMarkup(
 [
-["New Chat 🔎","Another Chat 🔁"],
+["New Chat 🔎"],
 ["Settings ⚙️"]
 ],
 resize_keyboard=True
@@ -33,7 +38,7 @@ resize_keyboard=True
 
 settings_menu = ReplyKeyboardMarkup(
 [
-["Gender 👤","Age 🎂"],
+["Gender 👤","DOB 🎂"],
 ["Back ⬅️"]
 ],
 resize_keyboard=True
@@ -43,15 +48,6 @@ gender_menu = ReplyKeyboardMarkup(
 [
 ["👦 Boy","👧 Girl"],
 ["👤 Anonymous"],
-["Back ⬅️"]
-],
-resize_keyboard=True
-)
-
-age_menu = ReplyKeyboardMarkup(
-[
-["18-21","22-25"],
-["26-30","31+"],
 ["Back ⬅️"]
 ],
 resize_keyboard=True
@@ -69,7 +65,22 @@ def remove_waiting(user):
 def user_info(user):
     gender = users[user].get("gender","👤")
     age = users[user].get("age","?")
-    return f"{gender} {age}"
+    return gender, age
+
+# -------- CAPTCHA --------
+
+async def send_captcha(update, context):
+
+    user = update.message.chat_id
+
+    a = random.randint(1,9)
+    b = random.randint(1,9)
+
+    captcha[user] = a + b
+
+    await update.message.reply_text(
+        f"🤖 Verification\n\nWhat is {a} + {b} ?"
+    )
 
 # -------- START --------
 
@@ -79,6 +90,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if user not in users:
         users[user] = {"gender":"👤","age":"?"}
+
+    if user not in verified_users:
+        await send_captcha(update,context)
+        return
 
     await update.message.reply_text(
         "Anonymous Chat",
@@ -107,22 +122,25 @@ async def start_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pairs[u1] = u2
         pairs[u2] = u1
 
+        g1, a1 = user_info(u2)
+        g2, a2 = user_info(u1)
+
         await context.bot.send_message(
             u1,
-            f"Connected with {user_info(u2)}",
+            f"{g1} Connected\nAge: {a1}",
             reply_markup=chat_menu
         )
 
         await context.bot.send_message(
             u2,
-            f"Connected with {user_info(u1)}",
+            f"{g2} Connected\nAge: {a2}",
             reply_markup=chat_menu
         )
 
     else:
 
         await update.message.reply_text(
-            "Searching for stranger...",
+            "🔎 Searching for stranger...",
             reply_markup=search_menu
         )
 
@@ -195,16 +213,40 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.chat_id
     text = update.message.text
 
+    # CAPTCHA CHECK
+
+    if user not in verified_users:
+
+        if user in captcha and text.isdigit():
+
+            if int(text) == captcha[user]:
+
+                verified_users.add(user)
+
+                await update.message.reply_text(
+                    "✅ Verified. Connecting..."
+                )
+
+                await start_search(update,context)
+
+            else:
+
+                await update.message.reply_text(
+                    "❌ Wrong answer. Try again."
+                )
+
+        return
+
     # CHAT
 
     if text == "New Chat 🔎":
         await start_search(update,context)
 
-    elif text == "Another Chat 🔁":
-        await another_chat(update,context)
-
     elif text == "Cancel Search 🛑":
         await cancel_search(update,context)
+
+    elif text == "Another Chat 🔁":
+        await another_chat(update,context)
 
     elif text == "Leave Chat ❌":
         await leave_chat(update,context)
@@ -241,26 +283,45 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=settings_menu
         )
 
-    elif text == "Age 🎂":
+    elif text == "DOB 🎂":
+        users[user]["awaiting_dob"] = True
         await update.message.reply_text(
-            "Select age group",
-            reply_markup=age_menu
+            "Enter DOB\nFormat: DD-MM-YYYY"
         )
 
-    elif text in ["18-21","22-25","26-30","31+"]:
-        users[user]["age"] = text
-        await update.message.reply_text(
-            f"Age set to {text}",
-            reply_markup=settings_menu
-        )
+    elif users[user].get("awaiting_dob"):
+
+        try:
+
+            dob = datetime.strptime(text,"%d-%m-%Y")
+            today = datetime.today()
+
+            age = today.year - dob.year - (
+                (today.month,today.day) < (dob.month,dob.day)
+            )
+
+            users[user]["age"] = age
+            users[user]["awaiting_dob"] = False
+
+            await update.message.reply_text(
+                f"Age set to {age}",
+                reply_markup=settings_menu
+            )
+
+        except:
+
+            await update.message.reply_text(
+                "Invalid format.\nUse: DD-MM-YYYY"
+            )
 
     elif text == "Back ⬅️":
+
         await update.message.reply_text(
             "Back to main menu",
             reply_markup=menu
         )
 
-    # MESSAGE RELAY
+    # CHAT MESSAGE RELAY
 
     else:
 
