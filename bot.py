@@ -1,4 +1,4 @@
-import random
+ import random
 from datetime import datetime
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
@@ -356,3 +356,4 @@ app.add_handler(
 )
 
 app.run_polling(drop_pending_updates=True)
+
