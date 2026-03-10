@@ -11,7 +11,7 @@ pairs = {}
 
 menu = ReplyKeyboardMarkup(
 [
-["New Chat 🔎","Another Chat 🔁"],
+["New Chat 🔎"],
 ["Settings ⚙️"]
 ],
 resize_keyboard=True
@@ -200,11 +200,11 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "New Chat 🔎":
         await start_search(update,context)
 
-    elif text == "Another Chat 🔁":
-        await another_chat(update,context)
-
     elif text == "Cancel Search 🛑":
         await cancel_search(update,context)
+
+    elif text == "Another Chat 🔁":
+        await another_chat(update,context)
 
     elif text == "Leave Chat ❌":
         await leave_chat(update,context)
