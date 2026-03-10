@@ -13,8 +13,7 @@ menu = ReplyKeyboardMarkup(
 [
 ["New Chat 🔎"],
 ["Next 🔄", "Stop ❌"],
-["Cancel Search 🛑", "Clear Chat 🧹"],
-["Settings ⚙️"]
+["Cancel Search 🛑", "Settings ⚙️"]
 ],
 resize_keyboard=True
 )
@@ -54,23 +53,26 @@ def remove_from_waiting(user):
     if user in waiting:
         waiting.remove(user)
 
-# ---------- COMMAND ----------
+def user_info(user):
+    gender = users[user].get("gender","👤")
+    age = users[user].get("age","?")
+    return f"{gender} {age}"
+
+# ---------- START ----------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user = update.message.chat_id
 
-    users[user] = {
-        "gender": None,
-        "age": None
-    }
+    if user not in users:
+        users[user] = {"gender":"👤","age":"?"}
 
     await update.message.reply_text(
         "Anonymous Chat Bot",
         reply_markup=menu
     )
 
-# ---------- CHAT MATCHING ----------
+# ---------- MATCHMAKING ----------
 
 async def start_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -94,12 +96,20 @@ async def start_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pairs[u1] = u2
         pairs[u2] = u1
 
-        await context.bot.send_message(u1, "Connected to stranger")
-        await context.bot.send_message(u2, "Connected to stranger")
+        await context.bot.send_message(
+            u1,
+            f"Connected with {user_info(u2)}"
+        )
+
+        await context.bot.send_message(
+            u2,
+            f"Connected with {user_info(u1)}"
+        )
 
     else:
-
         await update.message.reply_text("Searching for stranger...")
+
+# ---------- CANCEL SEARCH ----------
 
 async def cancel_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -111,6 +121,8 @@ async def cancel_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("You are not searching.")
 
+# ---------- NEXT CHAT ----------
+
 async def next_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user = update.message.chat_id
@@ -121,12 +133,14 @@ async def next_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del pairs[user]
         del pairs[partner]
 
-        await context.bot.send_message(partner, "Stranger skipped")
+        await context.bot.send_message(partner,"Stranger skipped")
 
-        await start_search(update, context)
+        await start_search(update,context)
 
     else:
         await update.message.reply_text("You are not in chat.")
+
+# ---------- STOP CHAT ----------
 
 async def stop_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -138,25 +152,18 @@ async def stop_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del pairs[user]
         del pairs[partner]
 
-        await context.bot.send_message(partner, "Stranger left")
+        await context.bot.send_message(partner,"Stranger left")
 
     remove_from_waiting(user)
 
     await update.message.reply_text("Chat ended.")
-
-# ---------- CLEAR CHAT ----------
-
-async def clear_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    for _ in range(15):
-        await update.message.reply_text(" ")
 
 # ---------- SETTINGS ----------
 
 async def open_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
-        "⚙️ Settings\nChoose what you want to change.",
+        "⚙️ Settings\nChoose what to change.",
         reply_markup=settings_menu
     )
 
@@ -167,27 +174,24 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.chat_id
     text = update.message.text
 
-    # CHAT CONTROLS
+    # CHAT BUTTONS
 
     if text == "New Chat 🔎":
-        await start_search(update, context)
+        await start_search(update,context)
 
     elif text == "Cancel Search 🛑":
-        await cancel_search(update, context)
+        await cancel_search(update,context)
 
     elif text == "Next 🔄":
-        await next_chat(update, context)
+        await next_chat(update,context)
 
     elif text == "Stop ❌":
-        await stop_chat(update, context)
-
-    elif text == "Clear Chat 🧹":
-        await clear_chat(update, context)
+        await stop_chat(update,context)
 
     # SETTINGS
 
     elif text == "Settings ⚙️":
-        await open_settings(update, context)
+        await open_settings(update,context)
 
     elif text == "Gender 👤":
         await update.message.reply_text(
@@ -196,23 +200,23 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif text == "👦 Boy":
-        users[user]["gender"] = "Boy"
+        users[user]["gender"] = "👦"
         await update.message.reply_text(
-            "✅ Gender set to: Boy 👦",
+            "✅ Gender set to Boy 👦",
             reply_markup=settings_menu
         )
 
     elif text == "👧 Girl":
-        users[user]["gender"] = "Girl"
+        users[user]["gender"] = "👧"
         await update.message.reply_text(
-            "✅ Gender set to: Girl 👧",
+            "✅ Gender set to Girl 👧",
             reply_markup=settings_menu
         )
 
     elif text == "👤 Anonymous":
-        users[user]["gender"] = "Anonymous"
+        users[user]["gender"] = "👤"
         await update.message.reply_text(
-            "✅ Gender set to: Anonymous 👤",
+            "✅ Gender set to Anonymous 👤",
             reply_markup=settings_menu
         )
 
@@ -225,13 +229,13 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text in ["18-21","22-25","26-30","31+"]:
         users[user]["age"] = text
         await update.message.reply_text(
-            f"✅ Age set to: {text}",
+            f"✅ Age set to {text}",
             reply_markup=settings_menu
         )
 
     elif text == "Back ⬅️":
         await update.message.reply_text(
-            "⬅️ Returned to main menu.",
+            "⬅️ Back to main menu",
             reply_markup=menu
         )
 
@@ -242,7 +246,7 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         partner = partner_of(user)
 
         if partner:
-            await context.bot.send_message(partner, text)
+            await context.bot.send_message(partner,text)
         else:
             await update.message.reply_text("Press New Chat to start.")
 
@@ -252,7 +256,7 @@ async def block_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("Media not allowed. Text only.")
 
-# ---------- START BOT ----------
+# ---------- RUN BOT ----------
 
 print("Bot starting...")
 
